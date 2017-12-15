@@ -1,1 +1,1 @@
-from .config_stock import cfg
+from .config_stock_54_fea import cfg

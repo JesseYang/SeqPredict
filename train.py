@@ -32,22 +32,34 @@ class Model(ModelDesc):
     def _build_graph(self, inputs):
         feature, label = inputs
 
-        logits = (LinearWrap(feature)
-                  .FullyConnected('fc_1', 32)
-                  .LeakyReLU('relu_1', 0.1)
-                  .FullyConnected('fc_2', 32)
-                  .LeakyReLU('relu_2', 0.1)
-                  .FullyConnected('fc_3', 64)
-                  .LeakyReLU('relu_3', 0.1)
-                  .FullyConnected('fc_4', 64)
-                  .LeakyReLU('relu_4', 0.1)
-                  .Dropout('dp_2', 0.2)
-                  .FullyConnected('fc_7', 2)())
+        # for layer_name, params in cfg.network:
+        for layer_param in cfg.network:
+            layer_name = layer_param['name']
+            layer_type = layer_name.split('_')[0]
 
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=label)
+            if layer_type == "fc":
+                feature = FullyConnected(layer_name, feature, layer_param['num'])
+            elif layer_type == "relu":
+                feature = LeakyReLU(layer_name, feature, layer_param['k'])
+            elif layer_type == "dp":
+                feature = Dropout(layer_name, feature, layer_param['prob'])
+
+        # logits = (LinearWrap(feature)
+        #           .FullyConnected('fc_1', 32)
+        #           .LeakyReLU('relu_1', 0.1)
+        #           .FullyConnected('fc_2', 32)
+        #           .LeakyReLU('relu_2', 0.1)
+        #           .FullyConnected('fc_3', 64)
+        #           .LeakyReLU('relu_3', 0.1)
+        #           .FullyConnected('fc_4', 64)
+        #           .LeakyReLU('relu_4', 0.1)
+        #           .Dropout('dp_2', 0.2)
+        #           .FullyConnected('fc_7', 2)())
+
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=feature, labels=label)
         loss = tf.reduce_mean(loss, name='xentropy-loss')
 
-        wrong = prediction_incorrect(logits, label, 1, name='wrong-top1')
+        wrong = prediction_incorrect(feature, label, 1, name='wrong-top1')
         add_moving_summary(tf.reduce_mean(wrong, name='train-error-top1'))
 
         wd_cost = regularize_cost('.*/W', l2_regularizer(cfg.weight_decay), name='l2_regularize_loss')
@@ -93,6 +105,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', help='comma separated list of GPU(s) to use.', default='0')
     parser.add_argument('--batch_size', default=128)
     parser.add_argument('--load', help='load model')
+    parser.add_argument('--logdir', help="directory of logging", default=None)
     args = parser.parse_args()
 
     if args.gpu:
@@ -102,7 +115,10 @@ if __name__ == '__main__':
     NR_GPU = len(args.gpu.split(','))
     BATCH_SIZE = int(args.batch_size) // NR_GPU
 
-    logger.auto_set_dir()
+    if args.logdir != None:
+        logger.set_logger_dir(os.path.join("train_log", args.logdir))
+    else:
+        logger.auto_set_dir()
     config = get_config()
     if args.load:
         config.session_init = get_model_loader(args.load)

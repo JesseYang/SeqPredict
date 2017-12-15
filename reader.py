@@ -35,7 +35,7 @@ class Data(RNGDataFlow):
             self.rng.shuffle(idxs)
         for k in idxs:
             # classification
-            yield [self.x_data[k], 1 if self.y_data[k] > 0 else 0]
+            yield [self.x_data[k][:cfg.feature_len], 1 if self.y_data[k] > 0 else 0]
 
 if __name__ == '__main__':
     ds = Data('pred_more_data_alpha_900_10/pred_3/0_train_x',
